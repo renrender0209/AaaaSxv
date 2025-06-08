@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: youtube-streaming-app
+    name: youtubedayoon-by-renren
     env: python
     plan: free
     buildCommand: pip install -r requirements.txt
