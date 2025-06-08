@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}YouTube{% endblock %}</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- YouTubeライクなCSS -->
+    <style>
+        :root {
+            --yt-spec-base-background: #ffffff;
+            --yt-spec-raised-background: #ffffff;
+            --yt-spec-menu-background: #ffffff;
+            --yt-spec-inverted-background: #0f0f0f;
+            --yt-spec-outline: rgba(0, 0, 0, 0.1);
+            --yt-spec-text-primary: #0f0f0f;
+            --yt-spec-text-secondary: #606060;
+            --yt-spec-red: #ff0000;
+            --yt-spec-brand-button-text: #065fd4;
+        }
+
+        body {
+            font-family: Roboto, Arial, sans-serif;
+            background-color: var(--yt-spec-base-background);
+            color: var(--yt-spec-text-primary);
+            margin: 0;
+            padding: 0;
+            line-height: 1.4;
+        }
+
+        /* YouTubeヘッダー */
+        .youtube-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 56px;
+            background-color: var(--yt-spec-base-background);
+            border-bottom: 1px solid var(--yt-spec-outline);
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            z-index: 2020;
+            box-sizing: border-box;
+        }
+
+        .youtube-logo {
+            display: flex;
+            align-items: center;
+            margin-right: 40px;
+            text-decoration: none;
+            color: var(--yt-spec-text-primary);
+        }
+
+        .youtube-logo i {
+            color: var(--yt-spec-red);
+            font-size: 20px;
+            margin-right: 6px;
+        }
+
+        .youtube-logo span {
+            font-size: 16px;
+            font-weight: 500;
+            letter-spacing: -0.5px;
+        }
+
+        /* YouTubeライクな検索バー */
+        .youtube-search {
+            display: flex;
+            flex: 1;
+            max-width: 640px;
+            margin: 0 auto;
+        }
+
+        .search-container {
+            display: flex;
+            flex: 1;
+            height: 40px;
+        }
+
+        .search-input {
+            flex: 1;
+            border: 1px solid #ccc;
+            border-right: none;
+            border-radius: 40px 0 0 40px;
+            padding: 0 16px;
+            font-size: 16px;
+            outline: none;
+            box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+
+        .search-input:focus {
+            border-color: var(--yt-spec-brand-button-text);
+            box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+        }
+
+        .search-button {
+            width: 64px;
+            background-color: #f8f9fa;
+            border: 1px solid #ccc;
+            border-radius: 0 40px 40px 0;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .search-button:hover {
+            background-color: #f0f0f0;
+        }
+
+        /* メインコンテンツ */
+        .main-content {
+            margin-top: 56px;
+            min-height: calc(100vh - 56px);
+        }
+
+        /* 動画カード */
+        .video-card {
+            background: transparent;
+            border: none;
+            margin-bottom: 24px;
+            cursor: pointer;
+        }
+
+        .video-thumbnail {
+            width: 100%;
+            aspect-ratio: 16/9;
+            border-radius: 12px;
+            object-fit: cover;
+        }
+
+        .video-duration {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .video-info {
+            padding: 12px 0 0;
+        }
+
+        .video-title {
+            font-size: 14px;
+            font-weight: 500;
+            line-height: 1.3;
+            margin: 0 0 4px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .video-title a {
+            color: var(--yt-spec-text-primary);
+            text-decoration: none;
+        }
+
+        .video-title a:hover {
+            color: var(--yt-spec-text-primary);
+        }
+
+        .video-meta {
+            color: var(--yt-spec-text-secondary);
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .channel-link {
+            color: var(--yt-spec-text-secondary);
+            text-decoration: none;
+        }
+
+        .channel-link:hover {
+            color: var(--yt-spec-text-primary);
+        }
+
+        /* トレンドセクション */
+        .trending-header {
+            padding: 24px 0 16px;
+            border-bottom: 1px solid var(--yt-spec-outline);
+            margin-bottom: 24px;
+        }
+
+        .trending-title {
+            font-size: 20px;
+            font-weight: 500;
+            color: var(--yt-spec-text-primary);
+            margin: 0;
+        }
+
+        /* レスポンシブ */
+        .video-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 16px;
+            padding: 24px 16px;
+        }
+
+        @media (max-width: 768px) {
+            .video-grid {
+                grid-template-columns: 1fr;
+                padding: 16px 8px;
+            }
+        }
+
+        /* ページネーション */
+        .pagination {
+            justify-content: center;
+            margin: 32px 0;
+        }
+
+        .page-link {
+            color: var(--yt-spec-brand-button-text);
+            border-color: var(--yt-spec-outline);
+        }
+
+        .page-item.active .page-link {
+            background-color: var(--yt-spec-brand-button-text);
+            border-color: var(--yt-spec-brand-button-text);
+        }
+
+        /* ヘッダーアクション */
+        .header-actions {
+            display: flex;
+            align-items: center;
+            margin-left: 16px;
+        }
+
+        .shorts-link {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            text-decoration: none;
+            color: var(--yt-spec-text-primary);
+            border-radius: 18px;
+            transition: background-color 0.1s;
+        }
+
+        .shorts-link:hover {
+            background-color: rgba(0, 0, 0, 0.05);
+            color: var(--yt-spec-text-primary);
+        }
+
+        .shorts-link i {
+            margin-right: 6px;
+            font-size: 16px;
+        }
+
+        .shorts-link span {
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        @media (max-width: 768px) {
+            .shorts-link span {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- YouTubeライクなヘッダー -->
+    <header class="youtube-header">
+        <a href="{{ url_for('index') }}" class="youtube-logo">
+            <i class="fab fa-youtube"></i>
+            <span>YouTube</span>
+        </a>
+        
+        <form class="youtube-search" action="{{ url_for('search') }}" method="GET">
+            <div class="search-container">
+                <input type="text" name="q" class="search-input" 
+                       placeholder="検索" 
+                       value="{{ request.args.get('q', '') }}">
+                <button type="submit" class="search-button">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+        </form>
+        
+        <div class="header-actions">
+            <a href="{{ url_for('shorts') }}" class="shorts-link" title="ショート動画">
+                <i class="fas fa-mobile-alt"></i>
+                <span>Shorts</span>
+            </a>
+            
+
+            
+            <!-- ユーザーメニュー -->
+            {% if current_user.is_authenticated %}
+                <div class="dropdown ms-3">
+                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                        <i class="fas fa-user"></i> {{ current_user.username }}
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{{ url_for('auth.profile') }}">
+                            <i class="fas fa-user"></i> プロフィール
+                        </a></li>
+                        <li><a class="dropdown-item" href="/liked-videos">
+                            <i class="fas fa-thumbs-up"></i> 評価した動画
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">
+                            <i class="fas fa-sign-out-alt"></i> ログアウト
+                        </a></li>
+                    </ul>
+                </div>
+            {% else %}
+                <div class="ms-3">
+                    <a href="{{ url_for('auth.login') }}" class="btn btn-outline-primary me-2">
+                        <i class="fas fa-sign-in-alt"></i> ログイン
+                    </a>
+                    <a href="{{ url_for('auth.register') }}" class="btn btn-primary">
+                        <i class="fas fa-user-plus"></i> 新規登録
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </header>
+
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+        {% if error %}
+        <div class="alert alert-danger alert-dismissible fade show m-3" role="alert">
+            {{ error }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endif %}
+        
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

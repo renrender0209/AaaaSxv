@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block title %}{{ query }} - YouTube{% endblock %}
+
+{% block content %}
+<div style="padding: 24px 16px;">
+    <!-- 検索結果ヘッダー -->
+    <div style="margin-bottom: 24px;">
+        <p style="color: var(--yt-spec-text-secondary); font-size: 14px; margin: 0;">
+            約 {{ (results|length + channels|length if channels else results|length) }} 件の結果
+        </p>
+    </div>
+
+    <!-- チャンネル検索結果 -->
+    {% if channels %}
+    <div style="margin-bottom: 32px;">
+        {% for channel in channels %}
+        <div style="display: flex; padding: 16px 0; border-bottom: 1px solid var(--yt-spec-outline);">
+            <div style="margin-right: 16px;">
+                {% if channel.authorThumbnails %}
+                <img src="{{ channel.authorThumbnails[0].url }}" 
+                     style="width: 136px; height: 136px; border-radius: 50%; object-fit: cover;"
+                     alt="{{ channel.author }}">
+                {% else %}
+                <div style="width: 136px; height: 136px; border-radius: 50%; background: #ccc; display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-user" style="font-size: 48px; color: #999;"></i>
+                </div>
+                {% endif %}
+            </div>
+            <div style="flex: 1;">
+                <h3 style="margin: 0 0 8px; font-size: 18px; font-weight: 500;">
+                    <a href="{{ url_for('channel', channel_id=channel.authorId, name=channel.author) }}" 
+                       style="color: var(--yt-spec-text-primary); text-decoration: none;">
+                        {{ channel.author }}
+                    </a>
+                </h3>
+                <div style="color: var(--yt-spec-text-secondary); font-size: 12px; margin-bottom: 8px;">
+                    {% if channel.subCount and channel.subCount > 0 %}
+                    登録者 {{ '{:,}'.format(channel.subCount) }} 人
+                    {% else %}
+                    登録者数不明
+                    {% endif %}
+                    {% if channel.videoCount and channel.videoCount > 0 %}
+                    • 動画 {{ '{:,}'.format(channel.videoCount) }} 本
+                    {% endif %}
+                </div>
+                {% if channel.description %}
+                <p style="color: var(--yt-spec-text-secondary); font-size: 12px; margin: 0; line-height: 1.5;">
+                    {{ channel.description[:150] }}{% if channel.description|length > 150 %}...{% endif %}
+                </p>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- 動画検索結果 -->
+    {% if results %}
+    <div class="video-grid">
+        {% for video in results %}
+        <div class="video-card" onclick="location.href='{{ url_for('watch', v=video.videoId) }}'">
+            <div style="position: relative;">
+                <img src="{{ video.videoThumbnails[0].url if video.videoThumbnails else '/static/images/default-thumb.jpg' }}" 
+                     class="video-thumbnail" alt="{{ video.title }}">
+                
+                {% if video.lengthSeconds %}
+                <span class="video-duration">
+                    {{ (video.lengthSeconds // 60)|string + ':' + '{:02d}'.format(video.lengthSeconds % 60) }}
+                </span>
+                {% endif %}
+            </div>
+            
+            <div class="video-info">
+                <div class="video-title">
+                    <a href="{{ url_for('watch', v=video.videoId) }}">{{ video.title }}</a>
+                </div>
+                
+                <div class="video-meta">
+                    <a href="{{ url_for('channel', channel_id=video.authorId, name=video.author) }}" 
+                       class="channel-link">{{ video.author }}</a>
+                    <br>
+                    {% if video.viewCount and video.viewCount > 0 %}
+                    {{ '{:,}'.format(video.viewCount) }} 回視聴
+                    {% else %}
+                    視聴回数不明
+                    {% endif %}
+                    {% if video.publishedText %} • {{ video.publishedText }}{% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- ページネーション -->
+    {% if results and results|length > 0 %}
+    <nav aria-label="検索結果ページネーション" class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if page > 1 %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('search', q=query, page=page-1) }}">
+                    <i class="fas fa-chevron-left"></i> 前のページ
+                </a>
+            </li>
+            {% endif %}
+            
+            <li class="page-item active">
+                <span class="page-link">{{ page }}</span>
+            </li>
+            
+            {% if results|length >= 15 %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('search', q=query, page=page+1) }}">
+                    次のページ <i class="fas fa-chevron-right"></i>
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% else %}
+    <!-- 検索結果なし -->
+    <div class="text-center py-5">
+        <div class="empty-state">
+            <i class="fas fa-search fa-3x text-muted mb-3"></i>
+            <h4>検索結果が見つかりません</h4>
+            <p class="text-muted mb-4">
+                「{{ query }}」に一致する動画が見つかりませんでした。<br>
+                別のキーワードでお試しください。
+            </p>
+            <a href="{{ url_for('index') }}" class="btn btn-primary">
+                <i class="fas fa-home me-2"></i>ホームに戻る
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

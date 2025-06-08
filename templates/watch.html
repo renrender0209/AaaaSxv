@@ -1,0 +1,1589 @@
+{% extends "base.html" %}
+
+{% block title %}
+{% if video_info %}{{ video_info.title }} - YouTube Viewer{% else %}動画を視聴 - YouTube Viewer{% endif %}
+{% endblock %}
+
+{% block content %}
+{% if video_info and stream_data %}
+<div class="video-player-container">
+
+    
+    <div class="row">
+        <!-- 動画プレーヤー -->
+        <div class="col-lg-8">
+            <div class="video-player-wrapper">
+                <!-- 通常の動画プレーヤー -->
+                <div id="normalPlayer" style="display: block;">
+                    {% if stream_data.best_url or (stream_data.formats and stream_data.formats|length > 0) %}
+                    <div class="custom-video-player">
+                        <video id="videoPlayer" class="w-100" preload="metadata" 
+                               playsinline webkit-playsinline
+                               style="width: 100%; height: auto; aspect-ratio: 16/9; background: #000;">
+                            {% if stream_data.best_url %}
+                            <source src="{{ stream_data.best_url }}" type="video/mp4">
+                            {% endif %}
+                            {% if stream_data.formats %}
+                                {% for format in stream_data.formats %}
+                                    {% if format.container == 'mp4' %}
+                            <source src="{{ format.url }}" type="video/mp4" data-quality="{{ format.quality }}">
+                                    {% endif %}
+                                {% endfor %}
+                            {% endif %}
+                            <p>
+                                このビデオを再生するには、HTML5対応ブラウザが必要です。
+                            </p>
+                        </video>
+                        
+                        <!-- YouTube風カスタムコントロール -->
+                        <div class="custom-controls" id="customControls">
+                            <div class="progress-container">
+                                <div class="progress-bar" id="progressBar">
+                                    <div class="progress-filled" id="progressFilled"></div>
+                                    <div class="progress-handle" id="progressHandle"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="controls-bottom">
+                                <div class="controls-left">
+                                    <button class="control-btn" id="playPauseBtn">
+                                        <i class="fas fa-play" id="playPauseIcon"></i>
+                                    </button>
+                                    <button class="control-btn" id="muteBtn">
+                                        <i class="fas fa-volume-up" id="muteIcon"></i>
+                                    </button>
+                                    <div class="volume-container">
+                                        <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="70">
+                                    </div>
+                                    <span class="time-display">
+                                        <span id="currentTime">0:00</span> / <span id="duration">0:00</span>
+                                    </span>
+                                </div>
+                                
+                                <div class="controls-right">
+                                    <button class="control-btn" id="settingsBtn">
+                                        <i class="fas fa-cog"></i>
+                                    </button>
+                                    <button class="control-btn" id="fullscreenBtn">
+                                        <i class="fas fa-expand"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-warning">
+                        <h5>動画ストリームが見つかりません</h5>
+                        <p>動画のストリームURLを取得できませんでした。別の動画を試してください。</p>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- 埋め込みプレーヤー -->
+                <div id="embedPlayer" style="display: none;">
+                    <div class="embed-container" style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%; background: #000;">
+                        <iframe id="embedFrame" 
+                                style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;"
+                                src="https://www.youtube-nocookie.com/embed/{{ request.args.get('v') }}?autoplay=0&rel=0&modestbranding=1"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                allowfullscreen>
+                        </iframe>
+                    </div>
+                    <div class="embed-info mt-2 p-2 bg-light rounded">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            埋め込み表示中：YouTube-nocookie.com経由で表示しています
+                        </small>
+                        <button class="btn btn-link btn-sm float-end p-0" onclick="toggleEmbedPlayer()">
+                            <i class="fas fa-times"></i> 通常表示に戻る
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- YouTube Education 埋め込みプレーヤー -->
+                <div id="youtubeEduPlayer" style="display: none;">
+                    <div class="embed-container" style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%; background: #000;">
+                        <iframe id="youtubeEduFrame" 
+                                style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;"
+                                src=""
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                allowfullscreen>
+                        </iframe>
+                    </div>
+                    <div class="embed-info mt-2 p-2 bg-success bg-opacity-10 rounded">
+                        <small class="text-success">
+                            <i class="fas fa-graduation-cap me-1"></i>
+                            YouTube Education表示中：教育向け埋め込みプレーヤー
+                        </small>
+                        <button class="btn btn-link btn-sm float-end p-0 text-success" onclick="toggleYouTubeEduPlayer()">
+                            <i class="fas fa-times"></i> 通常表示に戻る
+                        </button>
+                    </div>
+                </div>
+                
+
+                
+                <!-- 音声専用プレーヤー（非表示） -->
+                <audio id="audioPlayer" style="display: none;" preload="metadata"></audio>
+            </div>
+
+            <!-- 動画情報 -->
+            <div class="video-info mt-4">
+                <h1 class="video-title">{{ video_info.title }}</h1>
+                
+                <div class="video-stats d-flex justify-content-between align-items-center mb-3">
+                    <div class="view-count">
+                        <i class="fas fa-eye me-1"></i>
+                        {{ '{:,}'.format(video_info.viewCount) if video_info.viewCount else 'N/A' }} 回視聴
+                    </div>
+                    
+                    <div class="video-actions d-flex justify-content-between align-items-center">
+                        <div class="video-meta">
+                            <span class="badge bg-secondary me-2">
+                                <i class="fas fa-clock me-1"></i>
+                                {% if video_info.lengthSeconds %}
+                                {{ (video_info.lengthSeconds // 60)|string + ':' + '{:02d}'.format(video_info.lengthSeconds % 60) }}
+                                {% endif %}
+                            </span>
+                            
+                            {% if video_info.publishedText %}
+                            <span class="badge bg-info">
+                                {{ video_info.publishedText }}
+                            </span>
+                            {% endif %}
+                            
+                            <!-- 音声状態表示 -->
+                            {% if stream_data and stream_data.has_audio %}
+                            <span class="badge bg-success">
+                                <i class="fas fa-volume-up me-1"></i>音声あり
+                            </span>
+                            {% else %}
+                            <span class="badge bg-warning">
+                                <i class="fas fa-volume-mute me-1"></i>音声なし
+                            </span>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- ユーザーアクション -->
+                        {% if current_user.is_authenticated %}
+                        <div class="user-actions">
+                            <!-- いいね/よくない -->
+                            <button class="btn btn-outline-success btn-sm me-2" id="likeBtn" onclick="rateVideo('like')">
+                                <i class="fas fa-thumbs-up"></i> <span id="likeText">いいね</span>
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm me-2" id="dislikeBtn" onclick="rateVideo('dislike')">
+                                <i class="fas fa-thumbs-down"></i> <span id="dislikeText">よくない</span>
+                            </button>
+                            
+                            <!-- お気に入り -->
+                            <button class="btn btn-outline-warning btn-sm me-2" id="favoriteBtn" onclick="toggleFavorite()">
+                                <i class="fas fa-heart"></i> <span id="favoriteText">お気に入り</span>
+                            </button>
+                            
+                            <!-- プレイリストに追加 -->
+                            <button class="btn btn-outline-info btn-sm me-2" data-bs-toggle="modal" data-bs-target="#playlistModal">
+                                <i class="fas fa-plus"></i> プレイリスト
+                            </button>
+                            
+
+                            
+                            <!-- 埋め込み視聴 -->
+                            <button class="btn btn-outline-primary btn-sm me-2" onclick="toggleEmbedPlayer()">
+                                <i class="fas fa-external-link-alt"></i> 埋め込みで視聴
+                            </button>
+                            
+                            <!-- 埋め込み2 (YouTube Education) -->
+                            <button class="btn btn-outline-success btn-sm me-2" onclick="toggleYouTubeEduPlayer()">
+                                <i class="fas fa-graduation-cap"></i> 埋め込み2
+                            </button>
+                            
+
+                        </div>
+                        {% else %}
+                        <div class="user-actions">
+                            <!-- 埋め込み視聴（ログイン不要） -->
+                            <button class="btn btn-outline-primary btn-sm me-2" onclick="toggleEmbedPlayer()">
+                                <i class="fas fa-external-link-alt"></i> 埋め込みで視聴
+                            </button>
+                            
+                            <!-- 埋め込み2 (YouTube Education) -->
+                            <button class="btn btn-outline-success btn-sm me-2" onclick="toggleYouTubeEduPlayer()">
+                                <i class="fas fa-graduation-cap"></i> 埋め込み2
+                            </button>
+                            
+                            <a href="{{ url_for('auth.login') }}" class="btn btn-primary btn-sm">
+                                <i class="fas fa-sign-in-alt"></i> ログインして機能を使用
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- チャンネル情報 -->
+                <div class="channel-info p-3 bg-light rounded mb-4">
+                    <div class="d-flex align-items-center">
+                        <div class="channel-avatar me-3">
+                            {% if video_info.authorThumbnails %}
+                            <img src="{{ video_info.authorThumbnails[-1].url }}" 
+                                 alt="{{ video_info.author }}" class="rounded-circle" width="48" height="48">
+                            {% else %}
+                            <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center" 
+                                 style="width: 48px; height: 48px;">
+                                <i class="fas fa-user text-white"></i>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div>
+                            <h6 class="mb-1">
+                                <a href="{{ url_for('channel', channel_id=video_info.authorId, name=video_info.author) }}" 
+                                   class="text-decoration-none text-dark">
+                                    {{ video_info.author }}
+                                </a>
+                            </h6>
+                            {% if video_info.subCountText %}
+                            <small class="text-muted">{{ video_info.subCountText }}</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 動画説明 -->
+                {% if video_info.description %}
+                <div class="video-description">
+                    <h6>動画の説明</h6>
+                    <div class="description-content p-3 bg-light rounded">
+                        <div class="description-text" id="descriptionText">
+                            {{ video_info.description|replace('\n', '<br>')|safe }}
+                        </div>
+                        {% if video_info.description|length > 300 %}
+                        <button class="btn btn-link btn-sm p-0 mt-2" id="toggleDescription">
+                            もっと見る
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- サイドバー：品質選択など -->
+        <div class="col-lg-4">
+            <div class="sidebar">
+                <!-- 品質選択 -->
+                {% if stream_data.formats %}
+                <div class="quality-selector mb-4">
+                    <h6><i class="fas fa-cog me-2"></i>品質設定</h6>
+                    <div class="card">
+                        <div class="card-body">
+                            <select class="form-select" id="qualitySelect">
+                                <option value="{{ stream_data.best_url }}">自動 (推奨)</option>
+                                {% for format in stream_data.formats %}
+                                <option value="{{ format.url }}" 
+                                        data-quality="{{ format.quality }}"
+                                        data-audio-url="{{ format.audio_url or '' }}"
+                                        data-has-audio="{{ format.has_audio|lower }}">
+                                    {{ format.quality }}
+                                    {% if format.resolution and format.resolution != '?x?' %}
+                                    - {{ format.resolution }}
+                                    {% endif %}
+                                    {% if format.fps %}
+                                    @ {{ format.fps }}fps
+                                    {% endif %}
+                                    {% if not format.has_audio and format.audio_url %}
+                                    (動画+MP3音声)
+                                    {% elif format.quality != '360p' and format.quality != '自動' %}
+                                    (MP3音声分離)
+                                    {% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- 動画情報サマリー -->
+                <div class="video-summary mb-4">
+                    <h6><i class="fas fa-info-circle me-2"></i>動画情報</h6>
+                    <div class="card">
+                        <div class="card-body">
+                            <table class="table table-sm table-borderless">
+                                <tbody>
+                                    <tr>
+                                        <td class="text-muted">長さ:</td>
+                                        <td>
+                                            {% if video_info.lengthSeconds %}
+                                            {{ (video_info.lengthSeconds // 60)|string + ':' + '{:02d}'.format(video_info.lengthSeconds % 60) }}
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% if video_info.genre %}
+                                    <tr>
+                                        <td class="text-muted">ジャンル:</td>
+                                        <td>{{ video_info.genre }}</td>
+                                    </tr>
+                                    {% endif %}
+                                    {% if video_info.keywords %}
+                                    <tr>
+                                        <td class="text-muted">タグ:</td>
+                                        <td>
+                                            {% for keyword in video_info.keywords[:3] %}
+                                            <span class="badge bg-secondary me-1">{{ keyword }}</span>
+                                            {% endfor %}
+                                        </td>
+                                    </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- コメントセクション -->
+    {% if comments_data and comments_data.comments %}
+    <div class="comments-section mt-5">
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0">
+                            <i class="fas fa-comments me-2"></i>
+                            コメント ({{ '{:,}'.format(comments_data.commentCount) if comments_data.commentCount else comments_data.comments|length }} 件)
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        {% for comment in comments_data.comments %}
+                        <div class="comment-item mb-3 {% if not loop.last %}border-bottom pb-3{% endif %}">
+                            <div class="d-flex">
+                                <div class="me-3">
+                                    {% if comment.authorThumbnails %}
+                                    <img src="{{ comment.authorThumbnails[0].url }}" 
+                                         class="rounded-circle comment-avatar" 
+                                         style="width: 40px; height: 40px; object-fit: cover;"
+                                         alt="{{ comment.author }}">
+                                    {% else %}
+                                    <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center" 
+                                         style="width: 40px; height: 40px;">
+                                        <i class="fas fa-user text-white"></i>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="comment-header mb-2">
+                                        <strong class="comment-author">{{ comment.author }}</strong>
+                                        {% if comment.publishedText %}
+                                        <span class="text-muted small ms-2">{{ comment.publishedText }}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="comment-text mb-2">
+                                        {{ comment.content|replace('\n', '<br>')|safe }}
+                                    </div>
+                                    <div class="comment-actions">
+                                        {% if comment.likeCount > 0 %}
+                                        <span class="text-muted small me-3">
+                                            <i class="fas fa-thumbs-up me-1"></i>{{ comment.likeCount }}
+                                        </span>
+                                        {% endif %}
+                                        {% if comment.replies > 0 %}
+                                        <span class="text-muted small">
+                                            <i class="fas fa-reply me-1"></i>{{ comment.replies }} 件の返信
+                                        </span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- プレイリストモーダル -->
+{% if current_user.is_authenticated %}
+<div class="modal fade" id="playlistModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">プレイリストに追加</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="playlistList">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">読み込み中...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ダウンロードモーダル -->
+<div class="modal fade" id="downloadModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">動画をダウンロード</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="downloadQuality" class="form-label">品質</label>
+                    <select class="form-select" id="downloadQuality">
+                        <option value="360p">360p (低画質)</option>
+                        <option value="480p">480p (標準画質)</option>
+                        <option value="720p" selected>720p (高画質)</option>
+                        <option value="1080p">1080p (フルHD)</option>
+                        <option value="best">最高品質</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="downloadFormat" class="form-label">フォーマット</label>
+                    <select class="form-select" id="downloadFormat">
+                        <option value="mp4" selected>MP4 (動画)</option>
+                        <option value="webm">WebM (動画)</option>
+                        <option value="mp3">MP3 (音声のみ)</option>
+                    </select>
+                </div>
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    ダウンロードリクエストを送信後、マイページのダウンロード履歴で進行状況を確認できます。
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                <button type="button" class="btn btn-primary" onclick="requestDownload()">ダウンロード開始</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% else %}
+<div class="text-center py-5">
+    <div class="error-state">
+        <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+        <h4>動画を読み込めません</h4>
+        <p class="text-muted mb-4">
+            {% if error %}
+            {{ error }}
+            {% else %}
+            この動画は現在利用できません。
+            {% endif %}
+        </p>
+        <a href="{{ url_for('index') }}" class="btn btn-primary">
+            <i class="fas fa-home me-2"></i>ホームに戻る
+        </a>
+    </div>
+</div>
+{% endif %}
+
+<!-- プレイリスト選択モーダル -->
+{% if current_user.is_authenticated %}
+<div class="modal fade" id="playlistModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">プレイリストに追加</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="playlistList">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">読み込み中...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<!-- Toast Notification Container -->
+<div class="toast-container position-fixed bottom-0 start-0 p-3" style="z-index: 9999;">
+    <div id="likeToast" class="toast bg-success text-white" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-body d-flex align-items-center">
+            <i class="fas fa-thumbs-up me-2"></i>
+            <span id="toastMessage">いいねを押しました！</span>
+        </div>
+    </div>
+</div>
+
+<style>
+/* YouTube風カスタムビデオプレーヤーのスタイル */
+.custom-video-player {
+    position: relative;
+    width: 100%;
+    background: #000;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.custom-controls {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(transparent, rgba(0,0,0,0.7));
+    padding: 16px;
+    opacity: 0;
+    transition: opacity 0.2s;
+    color: white;
+}
+
+.custom-video-player:hover .custom-controls {
+    opacity: 1;
+}
+
+.progress-container {
+    margin-bottom: 12px;
+}
+
+.progress-bar {
+    position: relative;
+    height: 4px;
+    background: rgba(255,255,255,0.3);
+    border-radius: 2px;
+    cursor: pointer;
+}
+
+.progress-bar:hover {
+    height: 6px;
+    margin-top: -1px;
+}
+
+.progress-filled {
+    height: 100%;
+    background: #ff0000;
+    border-radius: 2px;
+    width: 0%;
+    position: relative;
+}
+
+.progress-handle {
+    position: absolute;
+    top: -4px;
+    right: -6px;
+    width: 12px;
+    height: 12px;
+    background: #ff0000;
+    border-radius: 50%;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.progress-bar:hover .progress-handle {
+    opacity: 1;
+}
+
+.controls-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.controls-left, .controls-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.control-btn {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 18px;
+    padding: 8px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.control-btn:hover {
+    background: rgba(255,255,255,0.1);
+}
+
+.volume-container {
+    display: flex;
+    align-items: center;
+    margin: 0 8px;
+}
+
+.volume-slider {
+    width: 60px;
+    height: 4px;
+    background: rgba(255,255,255,0.3);
+    outline: none;
+    border-radius: 2px;
+}
+
+.volume-slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    background: #ff0000;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.time-display {
+    font-size: 13px;
+    color: rgba(255,255,255,0.9);
+    font-weight: 500;
+}
+
+/* トースト通知のスタイル */
+.toast {
+    min-width: 300px;
+}
+
+.toast.bg-success {
+    background-color: #28a745 !important;
+}
+
+.toast-body {
+    padding: 12px 16px;
+}
+</style>
+<script src="{{ url_for('static', filename='js/player.js') }}"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const video = document.getElementById('videoPlayer');
+    
+    if (video) {
+        // 音声を有効にするためのユーザーインタラクション
+        video.muted = false;
+        video.volume = 0.7;
+        
+        // カスタムコントロールの初期化
+        initializeCustomControls(video);
+        
+        // 動画の準備ができたときの処理
+        video.addEventListener('loadedmetadata', function() {
+            console.log('Video loaded successfully');
+            console.log('Audio enabled:', !video.muted);
+            updateDuration();
+        });
+        
+        // ユーザーがクリックした時に音声を有効化
+        video.addEventListener('click', function() {
+            if (video.muted) {
+                video.muted = false;
+                console.log('Audio unmuted by user interaction');
+            }
+        });
+        
+        // 再生開始時に音声確認
+        video.addEventListener('play', function() {
+            if (video.muted) {
+                video.muted = false;
+            }
+            console.log('Video playing, muted:', video.muted, 'volume:', video.volume);
+        });
+        
+        // エラーハンドリング
+        video.addEventListener('error', function(e) {
+            console.error('Video error:', e);
+            showToast('動画の読み込みに失敗しました', 'error');
+        });
+    }
+    
+    // カスタムコントロールの初期化
+    function initializeCustomControls(video) {
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const playPauseIcon = document.getElementById('playPauseIcon');
+        const muteBtn = document.getElementById('muteBtn');
+        const muteIcon = document.getElementById('muteIcon');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const progressBar = document.getElementById('progressBar');
+        const progressFilled = document.getElementById('progressFilled');
+        const progressHandle = document.getElementById('progressHandle');
+        const currentTimeSpan = document.getElementById('currentTime');
+        const durationSpan = document.getElementById('duration');
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        
+        if (!playPauseBtn) return;
+        
+        // 再生/一時停止ボタン
+        playPauseBtn.addEventListener('click', function() {
+            if (video.paused) {
+                video.play();
+                playPauseIcon.className = 'fas fa-pause';
+            } else {
+                video.pause();
+                playPauseIcon.className = 'fas fa-play';
+            }
+        });
+        
+        // ミュートボタン
+        muteBtn.addEventListener('click', function() {
+            video.muted = !video.muted;
+            muteIcon.className = video.muted ? 'fas fa-volume-mute' : 'fas fa-volume-up';
+            volumeSlider.value = video.muted ? 0 : video.volume * 100;
+        });
+        
+        // ボリュームスライダー
+        volumeSlider.addEventListener('input', function() {
+            video.volume = this.value / 100;
+            video.muted = this.value == 0;
+            muteIcon.className = video.muted ? 'fas fa-volume-mute' : 'fas fa-volume-up';
+        });
+        
+        // プログレスバー
+        progressBar.addEventListener('click', function(e) {
+            const rect = this.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const percentage = clickX / rect.width;
+            video.currentTime = percentage * video.duration;
+        });
+        
+        // フルスクリーンボタン
+        fullscreenBtn.addEventListener('click', function() {
+            if (video.requestFullscreen) {
+                video.requestFullscreen();
+            } else if (video.webkitRequestFullscreen) {
+                video.webkitRequestFullscreen();
+            }
+        });
+        
+        // 時間更新
+        video.addEventListener('timeupdate', function() {
+            updateProgress();
+            updateCurrentTime();
+        });
+        
+        // 動画状態の同期
+        video.addEventListener('play', function() {
+            playPauseIcon.className = 'fas fa-pause';
+        });
+        
+        video.addEventListener('pause', function() {
+            playPauseIcon.className = 'fas fa-play';
+        });
+    }
+    
+    function updateProgress() {
+        const video = document.getElementById('videoPlayer');
+        const progressFilled = document.getElementById('progressFilled');
+        
+        if (video && progressFilled && video.duration) {
+            const percentage = (video.currentTime / video.duration) * 100;
+            progressFilled.style.width = percentage + '%';
+        }
+    }
+    
+    function updateCurrentTime() {
+        const video = document.getElementById('videoPlayer');
+        const currentTimeSpan = document.getElementById('currentTime');
+        
+        if (video && currentTimeSpan) {
+            currentTimeSpan.textContent = formatTime(video.currentTime);
+        }
+    }
+    
+    function updateDuration() {
+        const video = document.getElementById('videoPlayer');
+        const durationSpan = document.getElementById('duration');
+        
+        if (video && durationSpan && video.duration) {
+            durationSpan.textContent = formatTime(video.duration);
+        }
+    }
+    
+    function formatTime(seconds) {
+        const minutes = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return minutes + ':' + (secs < 10 ? '0' : '') + secs;
+    }
+
+    // 品質選択（音声同期対応版）
+    const qualitySelect = document.getElementById('qualitySelect');
+    if (qualitySelect) {
+        qualitySelect.addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            const videoUrl = selectedOption.value;
+            const audioUrl = selectedOption.dataset.audioUrl;
+            const hasAudio = selectedOption.dataset.hasAudio === 'true';
+            const video = document.getElementById('videoPlayer');
+            const audio = document.getElementById('audioPlayer');
+            
+            if (video && videoUrl) {
+                const currentTime = video.currentTime;
+                const wasPlaying = !video.paused;
+                
+                // 既存の音声を停止
+                if (audio) {
+                    audio.pause();
+                    audio.src = '';
+                }
+                
+                // 動画ソースを変更
+                video.src = videoUrl;
+                video.load();
+                
+                // 音声が分離されている場合の処理
+                if (!hasAudio && audioUrl && audio) {
+                    audio.src = audioUrl;
+                    audio.load();
+                    
+                    // 動画と音声の同期設定
+                    setupVideoAudioSync(video, audio);
+                }
+                
+                video.addEventListener('loadedmetadata', function() {
+                    video.currentTime = currentTime;
+                    if (audio && audioUrl && !hasAudio) {
+                        audio.currentTime = currentTime;
+                    }
+                    
+                    if (wasPlaying) {
+                        const playPromise = video.play();
+                        if (playPromise) {
+                            playPromise.then(() => {
+                                if (audio && audioUrl && !hasAudio) {
+                                    audio.play().catch(e => {
+                                        console.log('Audio play prevented:', e);
+                                    });
+                                }
+                            }).catch(e => {
+                                console.log('Video play prevented:', e);
+                            });
+                        }
+                    }
+                }, { once: true });
+            }
+        });
+    }
+    
+    // 動画と音声の同期設定関数
+    function setupVideoAudioSync(video, audio) {
+        // 再生/一時停止の同期
+        video.addEventListener('play', function() {
+            if (audio && audio.paused) {
+                audio.play().catch(e => console.log('Audio sync play error:', e));
+            }
+        });
+        
+        video.addEventListener('pause', function() {
+            if (audio && !audio.paused) {
+                audio.pause();
+            }
+        });
+        
+        // シーク時の同期
+        video.addEventListener('seeked', function() {
+            if (audio) {
+                audio.currentTime = video.currentTime;
+            }
+        });
+        
+        // 音量同期
+        video.addEventListener('volumechange', function() {
+            if (audio) {
+                audio.volume = video.volume;
+                audio.muted = video.muted;
+            }
+        });
+        
+        // 定期的な同期チェック（1秒ごと）
+        const syncInterval = setInterval(() => {
+            if (video && audio && !video.paused && !audio.paused) {
+                const timeDiff = Math.abs(video.currentTime - audio.currentTime);
+                if (timeDiff > 0.3) { // 0.3秒以上のずれがある場合
+                    audio.currentTime = video.currentTime;
+                }
+            }
+        }, 1000);
+        
+        // クリーンアップ
+        video.addEventListener('ended', () => {
+            clearInterval(syncInterval);
+            if (audio) audio.pause();
+        });
+    }
+
+    // 説明文の展開/折りたたみ
+    const toggleDescription = document.getElementById('toggleDescription');
+    const descriptionText = document.getElementById('descriptionText');
+    
+    if (toggleDescription && descriptionText) {
+        const fullText = descriptionText.innerHTML;
+        const shortText = fullText.substring(0, 300) + '...';
+        
+        descriptionText.innerHTML = shortText;
+        
+        toggleDescription.addEventListener('click', function() {
+            if (this.textContent === 'もっと見る') {
+                descriptionText.innerHTML = fullText;
+                this.textContent = '閉じる';
+            } else {
+                descriptionText.innerHTML = shortText;
+                this.textContent = 'もっと見る';
+            }
+        });
+    }
+    
+    // バックエンド機能のJavaScript
+    loadUserActions();
+});
+
+// ユーザーアクション（いいね、お気に入り状態）を読み込み
+async function loadUserActions() {
+    if (!{{ 'true' if current_user.is_authenticated else 'false' }}) return;
+    
+    const videoId = '{{ video_info.videoId if video_info else "" }}';
+    if (!videoId) return;
+    
+    try {
+        // いいね状態を取得
+        const ratingResponse = await fetch(`/api/videos/${videoId}/rating`);
+        const ratingData = await ratingResponse.json();
+        
+        if (ratingData.success) {
+            updateRatingButtons(ratingData.rating);
+        }
+        
+        // お気に入り状態を取得
+        const favoriteResponse = await fetch(`/api/favorites/status/${videoId}`);
+        const favoriteData = await favoriteResponse.json();
+        
+        if (favoriteData.success) {
+            updateFavoriteButton(favoriteData.is_favorite);
+        }
+    } catch (error) {
+        console.error('ユーザーアクションの読み込みエラー:', error);
+    }
+}
+
+// いいね/よくないボタンの更新
+function updateRatingButtons(rating) {
+    const likeBtn = document.getElementById('likeBtn');
+    const dislikeBtn = document.getElementById('dislikeBtn');
+    const likeText = document.getElementById('likeText');
+    const dislikeText = document.getElementById('dislikeText');
+    
+    // ボタンをリセット
+    likeBtn.className = 'btn btn-outline-success btn-sm me-2';
+    dislikeBtn.className = 'btn btn-outline-danger btn-sm me-2';
+    likeText.textContent = 'いいね';
+    dislikeText.textContent = 'よくない';
+    
+    if (rating === 'like') {
+        likeBtn.className = 'btn btn-success btn-sm me-2';
+        likeText.textContent = 'いいね済み';
+    } else if (rating === 'dislike') {
+        dislikeBtn.className = 'btn btn-danger btn-sm me-2';
+        dislikeText.textContent = 'よくない済み';
+    }
+}
+
+// お気に入りボタンの更新
+function updateFavoriteButton(isFavorite) {
+    const favoriteBtn = document.getElementById('favoriteBtn');
+    const favoriteText = document.getElementById('favoriteText');
+    
+    if (isFavorite) {
+        favoriteBtn.className = 'btn btn-warning btn-sm me-2';
+        favoriteText.textContent = 'お気に入り済み';
+    } else {
+        favoriteBtn.className = 'btn btn-outline-warning btn-sm me-2';
+        favoriteText.textContent = 'お気に入り';
+    }
+}
+
+// 動画を評価（いいね/よくない）
+async function rateVideo(rating) {
+    const videoId = '{{ video_info.videoId if video_info else "" }}';
+    if (!videoId) return;
+    
+    try {
+        const response = await fetch('/api/videos/rate', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                video_id: videoId,
+                rating: rating
+            })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            updateRatingButtons(data.rating);
+            
+            // いいねボタンが押された場合の特別な通知
+            if (rating === 'like') {
+                showLikeToast();
+            } else {
+                showToast(data.message, 'success');
+            }
+        } else {
+            showToast(data.error, 'error');
+        }
+    } catch (error) {
+        showToast('評価の送信に失敗しました', 'error');
+    }
+}
+
+// いいね専用のトースト通知
+function showLikeToast() {
+    const toast = document.getElementById('likeToast');
+    const toastMessage = document.getElementById('toastMessage');
+    
+    if (toast && toastMessage) {
+        toastMessage.textContent = 'いいねを押しました！';
+        const bsToast = new bootstrap.Toast(toast, {
+            autohide: true,
+            delay: 3000
+        });
+        bsToast.show();
+    }
+}
+
+// お気に入りの切り替え
+async function toggleFavorite() {
+    const videoId = '{{ video_info.videoId if video_info else "" }}';
+    if (!videoId) return;
+    
+    try {
+        const response = await fetch('/api/favorites/toggle', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                video_id: videoId,
+                title: '{{ video_info.title if video_info else "" }}',
+                thumbnail_url: '{{ video_info.videoThumbnails[0].url if video_info and video_info.videoThumbnails else "" }}',
+                uploader: '{{ video_info.author if video_info else "" }}'
+            })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            updateFavoriteButton(data.is_favorite);
+            showToast(data.message, 'success');
+        } else {
+            showToast(data.error, 'error');
+        }
+    } catch (error) {
+        showToast('お気に入りの更新に失敗しました', 'error');
+    }
+}
+
+// プレイリストモーダルを開く時にプレイリスト一覧を読み込み
+document.getElementById('playlistModal').addEventListener('show.bs.modal', async function() {
+    const playlistsList = document.getElementById('playlistsList');
+    
+    try {
+        const response = await fetch('/api/playlists');
+        const data = await response.json();
+        
+        if (data.success && data.playlists.length > 0) {
+            playlistsList.innerHTML = data.playlists.map(playlist => `
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" id="playlist_${playlist.id}" 
+                           onchange="togglePlaylistVideo(${playlist.id}, this.checked)">
+                    <label class="form-check-label" for="playlist_${playlist.id}">
+                        ${playlist.name} (${playlist.video_count || 0}本)
+                    </label>
+                </div>
+            `).join('');
+        } else {
+            playlistsList.innerHTML = '<p class="text-muted">プレイリストがありません</p>';
+        }
+    } catch (error) {
+        playlistsList.innerHTML = '<p class="text-danger">プレイリストの読み込みに失敗しました</p>';
+    }
+});
+
+// プレイリストに動画を追加/削除
+async function togglePlaylistVideo(playlistId, isChecked) {
+    const videoId = '{{ video_info.videoId if video_info else "" }}';
+    if (!videoId) return;
+    
+    try {
+        if (isChecked) {
+            // プレイリストに追加
+            const response = await fetch(`/api/playlists/${playlistId}/videos`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    video_id: videoId,
+                    title: '{{ video_info.title if video_info else "" }}',
+                    thumbnail_url: '{{ video_info.videoThumbnails[0].url if video_info and video_info.videoThumbnails else "" }}',
+                    uploader: '{{ video_info.author if video_info else "" }}',
+                    duration: {{ video_info.lengthSeconds if video_info and video_info.lengthSeconds else 0 }}
+                })
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+                showToast('プレイリストに追加しました', 'success');
+            } else {
+                showToast(data.error, 'error');
+                document.getElementById(`playlist_${playlistId}`).checked = false;
+            }
+        } else {
+            // プレイリストから削除
+            const response = await fetch(`/api/playlists/${playlistId}/videos/${videoId}`, {
+                method: 'DELETE'
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+                showToast('プレイリストから削除しました', 'success');
+            } else {
+                showToast(data.error, 'error');
+                document.getElementById(`playlist_${playlistId}`).checked = true;
+            }
+        }
+    } catch (error) {
+        showToast('プレイリストの更新に失敗しました', 'error');
+        document.getElementById(`playlist_${playlistId}`).checked = !isChecked;
+    }
+}
+
+// ダウンロードリクエスト
+async function requestDownload() {
+    const videoId = '{{ video_info.videoId if video_info else "" }}';
+    const quality = document.getElementById('downloadQuality').value;
+    const format = document.getElementById('downloadFormat').value;
+    
+    if (!videoId) return;
+    
+    try {
+        const response = await fetch('/api/downloads', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                video_id: videoId,
+                title: '{{ video_info.title if video_info else "" }}',
+                quality: quality,
+                format: format
+            })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            showToast('ダウンロードリクエストを送信しました', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('downloadModal')).hide();
+        } else {
+            showToast(data.error, 'error');
+        }
+    } catch (error) {
+        showToast('ダウンロードリクエストの送信に失敗しました', 'error');
+    }
+}
+
+// トースト通知表示
+function showToast(message, type = 'info') {
+    // Bootstrap Toast を使用した通知
+    const toastContainer = document.getElementById('toastContainer') || createToastContainer();
+    
+    const toastId = 'toast_' + Date.now();
+    const bgClass = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-info';
+    
+    const toastHTML = `
+        <div id="${toastId}" class="toast ${bgClass} text-white" role="alert">
+            <div class="toast-body">
+                ${message}
+                <button type="button" class="btn-close btn-close-white float-end" data-bs-dismiss="toast"></button>
+            </div>
+        </div>
+    `;
+    
+    toastContainer.insertAdjacentHTML('beforeend', toastHTML);
+    
+    const toastElement = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastElement);
+    toast.show();
+    
+    // 自動削除
+    toastElement.addEventListener('hidden.bs.toast', function() {
+        toastElement.remove();
+    });
+}
+
+// トーストコンテナを作成
+function createToastContainer() {
+    const container = document.createElement('div');
+    container.id = 'toastContainer';
+    container.className = 'toast-container position-fixed top-0 end-0 p-3';
+    container.style.zIndex = '1050';
+    document.body.appendChild(container);
+    return container;
+}
+</script>
+
+<script>
+// 埋め込みプレーヤーの切り替え (グローバル関数)
+function toggleEmbedPlayer() {
+    const normalPlayer = document.getElementById('normalPlayer');
+    const embedPlayer = document.getElementById('embedPlayer');
+    const embedPlayer2 = document.getElementById('embedPlayer2');
+    
+    if (normalPlayer.style.display === 'none') {
+        // 埋め込みから通常表示に戻る
+        normalPlayer.style.display = 'block';
+        embedPlayer.style.display = 'none';
+        embedPlayer2.style.display = 'none';
+        
+        // ボタンテキストを更新
+        const allEmbedBtns = document.querySelectorAll('button[onclick="toggleEmbedPlayer()"]');
+        allEmbedBtns.forEach(btn => {
+            btn.innerHTML = '<i class="fas fa-external-link-alt"></i> 埋め込みで視聴';
+        });
+        
+        // 埋め込み再生２ボタンもリセット
+        const allEmbed2Btns = document.querySelectorAll('button[onclick="toggleEmbedPlayer2()"]');
+        allEmbed2Btns.forEach(btn => {
+            btn.innerHTML = '<i class="fas fa-graduation-cap"></i> 埋め込み再生２';
+        });
+    } else {
+        // 通常表示から埋め込みに切り替え
+        normalPlayer.style.display = 'none';
+        embedPlayer.style.display = 'block';
+        embedPlayer2.style.display = 'none';
+        
+        // 現在の動画を一時停止
+        const video = document.getElementById('videoPlayer');
+        if (video) {
+            video.pause();
+        }
+        
+        // ボタンテキストを更新
+        const allEmbedBtns = document.querySelectorAll('button[onclick="toggleEmbedPlayer()"]');
+        allEmbedBtns.forEach(btn => {
+            btn.innerHTML = '<i class="fas fa-video"></i> 通常表示に戻る';
+        });
+    }
+}
+</script>
+
+<script>
+// YouTube Education 埋め込みプレーヤーの切り替え (グローバル関数)
+function toggleYouTubeEduPlayer() {
+    const normalPlayer = document.getElementById('normalPlayer');
+    const embedPlayer = document.getElementById('embedPlayer');
+    const youtubeEduPlayer = document.getElementById('youtubeEduPlayer');
+    const youtubeEduFrame = document.getElementById('youtubeEduFrame');
+    
+    // 要素の存在確認
+    if (!normalPlayer || !youtubeEduPlayer || !youtubeEduFrame) {
+        console.error('Required elements not found for YouTube Education player');
+        return;
+    }
+    
+    const videoId = '{{ request.args.get("v") }}';
+    
+    if (normalPlayer.style.display === 'none' && youtubeEduPlayer.style.display === 'block') {
+        // YouTube Education埋め込みから通常表示に戻る
+        normalPlayer.style.display = 'block';
+        if (embedPlayer) embedPlayer.style.display = 'none';
+        youtubeEduPlayer.style.display = 'none';
+        
+        // iframeのソースをクリア
+        youtubeEduFrame.src = '';
+        
+        // ボタンテキストを更新
+        const allYoutubeEduBtns = document.querySelectorAll('button[onclick="toggleYouTubeEduPlayer()"]');
+        allYoutubeEduBtns.forEach(btn => {
+            btn.innerHTML = '<i class="fas fa-graduation-cap"></i> 埋め込み2';
+        });
+    } else {
+        // 通常表示からYouTube Education埋め込みに切り替え
+        normalPlayer.style.display = 'none';
+        if (embedPlayer) embedPlayer.style.display = 'none';
+        youtubeEduPlayer.style.display = 'block';
+        
+        // YouTube Education URLを生成（Kahoot完全様式）
+        const baseUrl = 'https://www.youtubeeducation.com/embed/';
+        const params = new URLSearchParams({
+            'autoplay': '0',
+            'mute': '0',
+            'controls': '0',
+            'start': '0',
+            'end': '20',
+            'origin': window.location.origin,
+            'playsinline': '1',
+            'showinfo': '0',
+            'rel': '0',
+            'iv_load_policy': '3',
+            'modestbranding': '1',
+            'fs': '1',
+            'embed_config': '{"enc":"AXH1eznHaXW7WyfxQz1_GK8aCNZz8-ge-5bnCYD3V6z85a1seUQtpshGq-PCneHTS8O9ndbdxXWWN6bl3tkxTAlHvybteTW25nY1fOM3ENPMc-UhilXHmzMLb5I1rj5K_EfMMnwaiTDg8c46GRgAjYb5GAUcmxZu0w==","hideTitle":true}',
+            'enablejsapi': '1',
+            'widgetid': '115',
+            'forigin': window.location.origin + '/creator',
+            'aoriginsup': '1',
+            'gporigin': window.location.origin + '/auth/login?next=%2Fcreator',
+            'vf': '6'
+        });
+        
+        const youtubeEduUrl = baseUrl + videoId + '?' + params.toString();
+        
+        // iframeにURLを設定
+        youtubeEduFrame.src = youtubeEduUrl;
+        
+        // 現在の動画を一時停止
+        const video = document.getElementById('videoPlayer');
+        if (video) {
+            video.pause();
+        }
+        
+        // ボタンテキストを更新
+        const allYoutubeEduBtns = document.querySelectorAll('button[onclick="toggleYouTubeEduPlayer()"]');
+        allYoutubeEduBtns.forEach(btn => {
+            btn.innerHTML = '<i class="fas fa-video"></i> 通常表示に戻る';
+        });
+        
+        console.log('YouTube Education URL:', youtubeEduUrl);
+    }
+}
+
+
+</script>
+
+{% if current_user.is_authenticated %}
+<script>
+// 現在の動画情報
+const currentVideo = {
+    id: '{{ video_info.videoId if video_info else "" }}',
+    title: '{{ video_info.title|replace("'", "\\'") if video_info else "" }}',
+    thumbnail: '{{ video_info.videoThumbnails[0].url if video_info and video_info.videoThumbnails else "" }}',
+    uploader: '{{ video_info.author|replace("'", "\\'") if video_info else "" }}',
+    duration: {{ video_info.lengthSeconds if video_info and video_info.lengthSeconds else 0 }}
+};
+
+// 動画評価機能
+async function rateVideo(rating) {
+    try {
+        const response = await fetch('/api/videos/rate', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                video_id: currentVideo.id,
+                rating: rating
+            })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            updateRatingButtons(data.rating);
+            showToast(data.message, 'success');
+        } else {
+            showToast('エラー: ' + data.error, 'error');
+        }
+    } catch (error) {
+        showToast('評価の更新に失敗しました', 'error');
+    }
+}
+    
+    // 評価ボタンの状態を更新
+    function updateRatingButtons(currentRating) {
+        const likeBtn = document.getElementById('likeBtn');
+        const dislikeBtn = document.getElementById('dislikeBtn');
+        const likeText = document.getElementById('likeText');
+        const dislikeText = document.getElementById('dislikeText');
+        
+        // リセット
+        likeBtn.className = 'btn btn-outline-success btn-sm me-2';
+        dislikeBtn.className = 'btn btn-outline-danger btn-sm me-2';
+        likeText.textContent = 'いいね';
+        dislikeText.textContent = 'よくない';
+        
+        if (currentRating === 'like') {
+            likeBtn.className = 'btn btn-success btn-sm me-2';
+            likeText.textContent = 'いいね済み';
+        } else if (currentRating === 'dislike') {
+            dislikeBtn.className = 'btn btn-danger btn-sm me-2';
+            dislikeText.textContent = 'よくない済み';
+        }
+    }
+    
+// お気に入り機能
+async function toggleFavorite() {
+    try {
+        const response = await fetch('/api/favorites/toggle', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                video_id: currentVideo.id,
+                title: currentVideo.title,
+                thumbnail_url: currentVideo.thumbnail,
+                uploader: currentVideo.uploader
+            })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            updateFavoriteButton(data.is_favorite);
+            showToast(data.message, 'success');
+        } else {
+            showToast('エラー: ' + data.error, 'error');
+        }
+    } catch (error) {
+        showToast('お気に入りの更新に失敗しました', 'error');
+    }
+}
+    
+    // お気に入りボタンの状態を更新
+    function updateFavoriteButton(isFavorite) {
+        const favoriteBtn = document.getElementById('favoriteBtn');
+        const favoriteText = document.getElementById('favoriteText');
+        
+        if (isFavorite) {
+            favoriteBtn.className = 'btn btn-warning btn-sm me-2';
+            favoriteText.textContent = 'お気に入り済み';
+        } else {
+            favoriteBtn.className = 'btn btn-outline-warning btn-sm me-2';
+            favoriteText.textContent = 'お気に入り';
+        }
+    }
+    
+    // プレイリスト読み込み
+    async function loadPlaylists() {
+        try {
+            const response = await fetch('/api/playlists');
+            const data = await response.json();
+            
+            const playlistList = document.getElementById('playlistList');
+            if (data.success && data.playlists.length > 0) {
+                playlistList.innerHTML = data.playlists.map(playlist => `
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="playlist_${playlist.id}">
+                        <label class="form-check-label" for="playlist_${playlist.id}">
+                            ${playlist.name} (${playlist.video_count}件)
+                        </label>
+                    </div>
+                    <button class="btn btn-sm btn-outline-primary ms-4 mb-2" onclick="addToPlaylist(${playlist.id})">
+                        追加
+                    </button>
+                `).join('');
+            } else {
+                playlistList.innerHTML = '<p class="text-muted">プレイリストがありません</p>';
+            }
+        } catch (error) {
+            document.getElementById('playlistList').innerHTML = '<p class="text-danger">プレイリストの読み込みに失敗しました</p>';
+        }
+    }
+    
+    // プレイリストに動画を追加
+    async function addToPlaylist(playlistId) {
+        try {
+            const response = await fetch(`/api/playlists/${playlistId}/videos`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    video_id: currentVideo.id,
+                    title: currentVideo.title,
+                    thumbnail_url: currentVideo.thumbnail,
+                    duration: currentVideo.duration,
+                    uploader: currentVideo.uploader
+                })
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+                showToast('プレイリストに追加しました', 'success');
+                bootstrap.Modal.getInstance(document.getElementById('playlistModal')).hide();
+            } else {
+                showToast('エラー: ' + data.error, 'danger');
+            }
+        } catch (error) {
+            showToast('プレイリストへの追加に失敗しました', 'danger');
+        }
+    }
+    
+    // 視聴履歴を記録
+    async function recordWatchHistory() {
+        if (video && video.duration) {
+            try {
+                await fetch('/api/watch-history', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        video_id: currentVideo.id,
+                        title: currentVideo.title,
+                        thumbnail_url: currentVideo.thumbnail,
+                        uploader: currentVideo.uploader,
+                        watch_duration: Math.floor(video.currentTime),
+                        total_duration: Math.floor(video.duration)
+                    })
+                });
+            } catch (error) {
+                console.log('視聴履歴の記録に失敗しました');
+            }
+        }
+    }
+
+    // ダウンロードリクエスト
+    async function requestDownload() {
+        const quality = document.getElementById('downloadQuality').value;
+        const format = document.getElementById('downloadFormat').value;
+        
+        try {
+            const response = await fetch('/api/downloads', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    video_id: currentVideo.id,
+                    title: currentVideo.title,
+                    quality: quality,
+                    format: format
+                })
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+                showToast('ダウンロードリクエストを送信しました', 'success');
+                bootstrap.Modal.getInstance(document.getElementById('downloadModal')).hide();
+            } else {
+                showToast('エラー: ' + data.error, 'error');
+            }
+        } catch (error) {
+            showToast('ダウンロードリクエストの送信に失敗しました', 'error');
+        }
+    }
+
+    // プレイリストモーダルが開かれた時にプレイリストを読み込み
+    document.getElementById('playlistModal').addEventListener('show.bs.modal', loadPlaylists);
+
+    // ページ読み込み時に初期状態を設定
+    document.addEventListener('DOMContentLoaded', function() {
+        loadUserActions();
+        
+        // 動画再生時に視聴履歴を記録
+        const video = document.getElementById('videoPlayer');
+        if (video) {
+            video.addEventListener('timeupdate', function() {
+                if (video.currentTime > 30) { // 30秒以上視聴した場合
+                    recordWatchHistory();
+                }
+            });
+        }
+    });
+
+</script>
+{% endif %}
+
+{% endblock %}

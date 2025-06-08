@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}YouTube{% endblock %}
+
+{% block content %}
+
+<!-- 日本のトレンド動画 -->
+{% if trending_videos %}
+<div class="trending-header" style="padding: 24px 16px 16px;">
+    <h1 class="trending-title">急上昇</h1>
+</div>
+
+<div class="video-grid">
+    {% for video in trending_videos %}
+    <div class="video-card" onclick="location.href='{{ url_for('watch', v=video.videoId) }}'">
+        <div style="position: relative;">
+            <img src="{{ video.videoThumbnails[-1].url if video.videoThumbnails and video.videoThumbnails|length > 0 else 'https://img.youtube.com/vi/' + video.videoId + '/hqdefault.jpg' }}" 
+                 class="video-thumbnail" alt="{{ video.title }}" 
+                 onerror="this.src='https://img.youtube.com/vi/{{ video.videoId }}/mqdefault.jpg'; this.onerror=function(){this.src='https://via.placeholder.com/320x180/f0f0f0/666?text=No+Image';}">
+            
+            {% if video.lengthSeconds %}
+            <span class="video-duration">
+                {{ (video.lengthSeconds // 60)|string + ':' + '{:02d}'.format(video.lengthSeconds % 60) }}
+            </span>
+            {% endif %}
+        </div>
+        
+        <div class="video-info">
+            <div class="video-title">
+                <a href="{{ url_for('watch', v=video.videoId) }}">{{ video.title }}</a>
+            </div>
+            
+            <div class="video-meta">
+                <a href="{{ url_for('channel', channel_id=video.authorId, name=video.author) }}" 
+                   class="channel-link">{{ video.author }}</a>
+                <br>
+                {% if video.viewCount and video.viewCount > 0 %}
+                {{ '{:,}'.format(video.viewCount) }} 回視聴
+                {% else %}
+                視聴回数不明
+                {% endif %}
+                {% if video.publishedText %} • {{ video.publishedText }}{% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div style="text-align: center; padding: 100px 20px;">
+    <h2 style="color: var(--yt-spec-text-secondary);">トレンド動画を読み込み中...</h2>
+</div>
+{% endif %}
+{% endblock %}
