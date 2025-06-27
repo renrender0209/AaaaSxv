@@ -6,7 +6,8 @@ INVIDIOUS_INSTANCES = [
     'https://invidious.nikkosphere.com/',
     'https://yewtu.be/',
     'https://invidious.private.coffee/',
-    'https://invidious.lunivers.trade/'
+    'https://invidious.lunivers.trade/',
+    'https://invidious.schenkel.eti.br/',
     # 音楽専用の信頼性の高いインスタンス
     'https://inv.nadeko.net/',
     'https://lekker.gay/',
